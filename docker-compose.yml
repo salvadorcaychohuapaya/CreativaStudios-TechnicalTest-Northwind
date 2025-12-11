@@ -1,0 +1,56 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: northwind-sqlserver
+    environment:
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: 'Northwind2025!'
+      MSSQL_PID: 'Express'
+    ports:
+      - '1433:1433'
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./database/backups:/var/opt/mssql/backup
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Northwind2025!" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: northwind-init
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./database/backups:/var/opt/mssql/backup
+      - ./database/scripts:/scripts
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        echo "Restoring Northwind database..."
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'Northwind2025!' -C -Q "RESTORE DATABASE Northwind FROM DISK = '/var/opt/mssql/backup/northwind.bak' WITH MOVE 'Northwind' TO '/var/opt/mssql/data/Northwind.mdf', MOVE 'Northwind_log' TO '/var/opt/mssql/data/Northwind_log.ldf', REPLACE"
+        echo "Creating WebTracker table..."
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'Northwind2025!' -C -d Northwind -i /scripts/01-webtracker.sql
+        echo "Creating stored procedures..."
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'Northwind2025!' -C -d Northwind -i /scripts/02-storedprocedures.sql
+        echo "Initialization completed"
+    restart: "no"
+
+  adminer:
+    image: adminer:latest
+    container_name: northwind-adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: sqlserver
+      ADMINER_DESIGN: 'pepa-linha'
+    ports:
+      - '8080:8080'
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+volumes:
+  sqlserver_data:

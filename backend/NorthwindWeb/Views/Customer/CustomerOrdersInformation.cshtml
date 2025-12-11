@@ -1,0 +1,116 @@
+﻿@{
+    ViewBag.Title = "Información de Pedidos del Cliente";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Información de Pedidos del Cliente</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="~/Content/kendo/default-main.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h2><i class="fas fa-shopping-cart"></i> Pedidos del Cliente: @ViewBag.CustomerId</h2>
+
+        <a href="/Customer/CustomersByCountry" class="btn btn-secondary mb-3">
+            <i class="fas fa-arrow-left"></i> Volver a Búsqueda
+        </a>
+
+        <div id="ordersGrid"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="~/Scripts/kendo/kendo.all.min.js"></script>
+
+    <script>
+        var customerId = "@ViewBag.CustomerId";
+
+        $(document).ready(function () {
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: function (options) {
+                        $.ajax({
+                            url: "/Services/OrderService.svc/GetOrdersByCustomerId",
+                            dataType: "json",
+                            data: {
+                                customerId: customerId,
+                                pageNumber: options.data.page || 1,
+                                pageSize: options.data.pageSize || 10
+                            },
+                            success: function (result) {
+                                $.each(result, function (i, item) {
+                                    if (item.OrderDate) {
+                                        var match = item.OrderDate.toString().match(/\/Date\((-?\d+)(?:[+-]\d{4})?\)\//);
+                                        if (match) {
+                                            item.OrderDate = new Date(parseInt(match[1]));
+                                        }
+                                    }
+                                    if (item.ShippedDate) {
+                                        var match = item.ShippedDate.toString().match(/\/Date\((-?\d+)(?:[+-]\d{4})?\)\//);
+                                        if (match) {
+                                            item.ShippedDate = new Date(parseInt(match[1]));
+                                        }
+                                    }
+                                });
+                                options.success(result);
+                            },
+                            error: function (result) {
+                                console.error("Error:", result);
+                                alert("Error al cargar pedidos");
+                                options.error(result);
+                            }
+                        });
+                    }
+                },
+                schema: {
+                    data: function (response) { return response; },
+                    total: function (response) {
+                        return response.length > 0 ? response[0].TotalRecords : 0;
+                    },
+                    model: {
+                        fields: {
+                            OrderID: { type: "number" },
+                            CustomerID: { type: "string" },
+                            OrderDate: { type: "date" },
+                            ShippedDate: { type: "date" }
+                        }
+                    }
+                },
+                pageSize: 10,
+                serverPaging: true
+            });
+
+            var gridInstance = new kendo.ui.Grid($("#ordersGrid"), {
+                dataSource: dataSource,
+                height: 550,
+                sortable: true,
+                pageable: {
+                    pageSize: 10,
+                    pageSizes: [10, 20, 50],
+                    buttonCount: 5,
+                    info: true,
+                    messages: {
+                        display: "Mostrando {0}-{1} de {2} pedidos",
+                        empty: "No hay pedidos para mostrar",
+                        page: "Página",
+                        of: "de {0}",
+                        itemsPerPage: "pedidos por página",
+                        first: "Primera página",
+                        previous: "Página anterior",
+                        next: "Página siguiente",
+                        last: "Última página"
+                    }
+                },
+                columns: [
+                    { field: "OrderID", title: "ID Pedido", width: 120 },
+                    { field: "CustomerID", title: "ID Cliente", width: 120 },
+                    { field: "OrderDate", title: "Fecha Pedido", width: 150, format: "{0:dd/MM/yyyy}" },
+                    { field: "ShippedDate", title: "Fecha Envío", width: 150, format: "{0:dd/MM/yyyy}" }
+                ]
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+﻿@{
+    ViewBag.Title = "Buscar Clientes por País";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Buscar Clientes por País</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="~/Content/kendo/default-main.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .k-grid {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2><i class="fas fa-search"></i> Buscar clientes por país</h2>
+
+        <form id="searchForm" class="form-inline mb-4">
+            <div class="form-group mr-2">
+                <input type="text" id="countryInput" class="form-control" placeholder="Ingresar país (USA, Germany, UK)" required />
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Buscar
+            </button>
+        </form>
+
+        <div id="customerGrid"></div>
+
+        <div id="noResults" class="alert alert-info" style="display:none;">
+            <i class="fas fa-info-circle"></i> No se encontraron clientes para este país.
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="~/Scripts/kendo/kendo.all.min.js"></script>
+
+    <script>
+        var gridInstance = null;
+        var currentCountry = '';
+
+        $(document).ready(function () {
+            $("#searchForm").on("submit", function (e) {
+                e.preventDefault();
+                currentCountry = $("#countryInput").val();
+                if (!currentCountry) return;
+
+                $("#noResults").hide();
+                loadGrid(currentCountry);
+            });
+        });
+
+        function loadGrid(country) {
+            if (gridInstance) {
+                gridInstance.destroy();
+                $("#customerGrid").empty();
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: function (options) {
+                        $.ajax({
+                            url: "/Services/CustomerService.svc/GetCustomersByCountry",
+                            dataType: "json",
+                            data: {
+                                country: country,
+                                pageNumber: options.data.page || 1,
+                                pageSize: options.data.pageSize || 10
+                            },
+                            success: function (result) {
+                                if (result && result.length > 0) {
+                                    options.success(result);
+                                } else {
+                                    options.success([]);
+                                    $("#noResults").show();
+                                }
+                            },
+                            error: function (result) {
+                                console.error("Error:", result);
+                                alert("Error al cargar clientes");
+                                options.error(result);
+                            }
+                        });
+                    }
+                },
+                schema: {
+                    data: function (response) {
+                        return response;
+                    },
+                    total: function (response) {
+                        return response.length > 0 ? response[0].TotalRecords : 0;
+                    }
+                },
+                pageSize: 10,
+                serverPaging: true
+            });
+
+            gridInstance = new kendo.ui.Grid($("#customerGrid"), {
+                dataSource: dataSource,
+                height: 550,
+                sortable: true,
+                pageable: {
+                    pageSize: 10,
+                    pageSizes: [10, 20, 50],
+                    buttonCount: 5,
+                    info: true,
+                    messages: {
+                        display: "Mostrando {0}-{1} de {2} clientes",
+                        empty: "No hay clientes para mostrar",
+                        page: "Página",
+                        of: "de {0}",
+                        itemsPerPage: "clientes por página",
+                        first: "Primera página",
+                        previous: "Página anterior",
+                        next: "Página siguiente",
+                        last: "Última página",
+                        refresh: "Actualizar"
+                    }
+                },
+                columns: [
+                    {
+                        field: "CustomerID",
+                        title: "Customer ID",
+                        width: 120,
+                        template: '<a href="/Customer/CustomerOrdersInformation/#=CustomerID#"><strong>#=CustomerID#</strong></a>'
+                    },
+                    { field: "CompanyName", title: "Company Name", width: 250 },
+                    { field: "ContactName", title: "Contact Name", width: 200 },
+                    { field: "Phone", title: "Phone Number", width: 150 },
+                    { field: "Fax", title: "Fax Number", width: 150 }
+                ]
+            });
+        }
+    </script>
+</body>
+</html>
